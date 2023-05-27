@@ -4,6 +4,7 @@ I've managed to land myself a bit of a two-birds situation here; it allows me to
 
 * [Wiki.js](https://js.wiki) (+ Git for backups)
 * [Plausible Analytics](https://plausible.io/docs/self-hosting)
+* [Linkding](https://github.com/sissbruecker/linkding)
 
 Because this is all very much a learning exercise for me, so I'm very happy to take suggestions for optimizations, best practices, etc.
 

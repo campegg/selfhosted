@@ -156,6 +156,31 @@ services:
       timeout: 30s
       retries: 3
 
+  linkding:
+    image: sissbruecker/linkding:latest
+    container_name: linkding
+    restart: unless-stopped
+    networks:
+      - cpnet-docker-network
+    volumes:
+      - "linkding-data:/etc/linkding/data"
+    environment:
+      LD_HOST_DATA_DIR: ./data
+      LD_SUPERUSER_NAME: ${SERVICE_USER}
+      LD_SUPERUSER_PASSWORD: ${SERVICE_PASS}
+      LD_DISABLE_BACKGROUND_TASKS: False
+      LD_DISABLE_URL_VALIDATION: False
+      LD_ENABLE_AUTH_PROXY: False
+      LD_DB_ENGINE: sqlite
+    ports:
+      - "8084:9090"
+    healthcheck:
+      start_period: 1m
+      test: ["CMD-SHELL", "curl -f http://localhost:9090/"]
+      interval: 5m
+      timeout: 30s
+      retries: 3
+
 networks:
     cpnet-docker-network:
       driver: bridge
@@ -166,4 +191,6 @@ volumes:
   plausible-db-data:
     driver: local
   plausible-event-data:
+    driver: local
+  linkding-data:
     driver: local
