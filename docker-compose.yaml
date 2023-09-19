@@ -2,108 +2,12 @@ version: "3"
 
 services:
 
-  wikijs_db:
-    image: postgres:14-alpine
-    container_name: wikijs_db
-    restart: unless-stopped
-    networks:
-      - cpnet-docker-network
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASS}
-      POSTGRES_DB: ${WIKIJS_DB_NAME}
-    logging:
-      driver: "none"
-    volumes:
-      - wikijs-db-data:/var/lib/postgresql/data
-    healthcheck:
-      start_period: 1m
-      test: ["CMD-SHELL", "psql -U ${DB_USER} -d ${WIKIJS_DB_NAME} -c 'SELECT 1' > /dev/null || exit 1"]
-      interval: 5m
-      timeout: 5s
-      retries: 3
-
-  plausible_db:
-    image: postgres:14-alpine
-    container_name: plausible_db
-    restart: unless-stopped
-    networks:
-      - cpnet-docker-network
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASS}
-      POSTGRES_DB: ${PLAUSIBLE_DB_NAME}
-    volumes:
-      - plausible-db-data:/var/lib/postgresql/data
-    healthcheck:
-      start_period: 1m
-      test: ["CMD-SHELL", "psql -U ${DB_USER} -d ${PLAUSIBLE_DB_NAME} -c 'SELECT 1' > /dev/null || exit 1"]
-      interval: 5m
-      timeout: 5s
-      retries: 3
-
-  plausible_events_db:
-    image: clickhouse/clickhouse-server:22.6-alpine
-    container_name: plausible_events_db
-    restart: unless-stopped
-    networks:
-      - cpnet-docker-network
-    volumes:
-      - plausible-event-data:/var/lib/clickhouse
-      - ./clickhouse/clickhouse-config.xml:/etc/clickhouse-server/config.d/logging.xml:ro
-      - ./clickhouse/clickhouse-user-config.xml:/etc/clickhouse-server/users.d/logging.xml:ro
-    ulimits:
-      nofile:
-        soft: 262144
-        hard: 262144
-    healthcheck:
-      start_period: 1m
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
-      interval: 5m
-      timeout: 30s
-      retries: 3
-
-  plausible_events_db_init:
-    image: clickhouse/clickhouse-server:22.6-alpine
-    container_name: plausible_events_db_init
-    depends_on:
-      - plausible_events_db
-    restart: on-failure
-    networks:
-      - cpnet-docker-network
-    command: >
-      bash -c '
-      until clickhouse-client --host plausible_events_db --query "CREATE DATABASE IF NOT EXISTS plausible"; do
-        sleep 1;
-      done;'
-
-  adminer:
-    image: adminer:latest
-    container_name: adminer
-    restart: unless-stopped
-    networks:
-      - cpnet-docker-network
-    depends_on:
-      - wikijs_db
-    environment:
-      ADMINER_DESIGN: "pepa-linha"
-    ports:
-      - "8081:8080"
-    healthcheck:
-      start_period: 1m
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/"]
-      interval: 5m
-      timeout: 30s
-      retries: 3
-
   wikijs:
     build:
       context: .
       dockerfile: Dockerfile
     image: wikijs_git:2
     container_name: wikijs
-    depends_on:
-      - wikijs_db
     restart: unless-stopped
     networks:
       - cpnet-docker-network
@@ -112,8 +16,8 @@ services:
       - ./keys/id_rsa.pub:/home/node/.ssh/id_rsa.pub:ro
     environment:
       DB_TYPE: postgres
-      DB_HOST: wikijs_db
-      DB_PORT: 5432
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
       DB_NAME: ${WIKIJS_DB_NAME}
@@ -126,34 +30,19 @@ services:
       timeout: 30s
       retries: 3
 
-  plausible:
-    image: plausible/analytics:v2.0.0-rc.0
-    container_name: plausible
-    depends_on:
-      - plausible_db
-      - plausible_events_db
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: umami
     restart: unless-stopped
-    networks:
-      - cpnet-docker-network
-    command: sh -c "sleep 10 && /entrypoint.sh db createdb && /entrypoint.sh db migrate && /entrypoint.sh run"
     environment:
-      BASE_URL: ${PLAUSIBLE_BASE_URL}
-      SECRET_KEY_BASE: ${PLAUSIBLE_SECRET_KEY}
-      DATABASE_URL: postgres://${DB_USER}:${DB_PASS}@plausible_db:5432/plausible
-      CLICKHOUSE_DATABASE_URL: http://plausible_events_db:8123/plausible
-      DISABLE_REGISTRATION: true
-      SMTP_HOST_ADDR: ${SMTP_HOST}
-      SMTP_HOST_PORT: ${SMTP_PORT}
-      SMTP_USER_NAME: ${SMTP_USER}
-      SMTP_USER_PWD: ${SMTP_PASS}
-      SMTP_HOST_SSL_ENABLED: true
-      GOOGLE_CLIENT_ID: ${PLAUSIBLE_GOOGLE_CLIENT}
-      GOOGLE_CLIENT_SECRET: ${PLAUSIBLE_GOOGLE_SECRET}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${UMAMI_DB_NAME}
+      DATABASE_TYPE: postgresql
+      APP_SECRET: ${UMAMI_SECRET}
     ports:
-      - 8083:8000
+    - "8083:3000"
     healthcheck:
       start_period: 1m
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/"]
       interval: 5m
       timeout: 30s
       retries: 3
@@ -168,8 +57,8 @@ services:
       - "linkding-data:/etc/linkding/data"
     environment:
       LD_HOST_DATA_DIR: ./data
-      LD_SUPERUSER_NAME: ${SERVICE_USER}
-      LD_SUPERUSER_PASSWORD: ${SERVICE_PASS}
+      LD_SUPERUSER_NAME: ${LINKDING_USER}
+      LD_SUPERUSER_PASSWORD: ${LINKDING_PASS}
       LD_DISABLE_BACKGROUND_TASKS: False
       LD_DISABLE_URL_VALIDATION: False
       LD_ENABLE_AUTH_PROXY: False
@@ -188,11 +77,5 @@ networks:
       driver: bridge
 
 volumes:
-  wikijs-db-data:
-    driver: local
-  plausible-db-data:
-    driver: local
-  plausible-event-data:
-    driver: local
   linkding-data:
     driver: local
