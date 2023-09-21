@@ -2,6 +2,27 @@ version: "3"
 
 services:
 
+  postgres_server:
+    image: postgres:16-alpine
+    container_name: postgres_server
+    restart: unless-stopped
+    networks:
+      - cpnet-docker-network
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      WIKIJS_DB_NAME: ${WIKIJS_DB_NAME}
+      UMAMI_DB_NAME: ${UMAMI_DB_NAME}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/create_db.sh:/docker-entrypoint-initdb.d/create_db.sh
+    healthcheck:
+      start_period: 1m
+      test: ["CMD-SHELL", "psql -U docker_db -d docker_db -c 'SELECT 1' > /dev/null || exit 1"]
+      interval: 5m
+      timeout: 5s
+      retries: 3
+
   wikijs:
     build:
       context: .
@@ -9,6 +30,8 @@ services:
     image: wikijs_git:2
     container_name: wikijs
     restart: unless-stopped
+    depends_on:
+      - postgres_server
     networks:
       - cpnet-docker-network
     volumes:
@@ -16,8 +39,8 @@ services:
       - ./keys/id_rsa.pub:/home/node/.ssh/id_rsa.pub:ro
     environment:
       DB_TYPE: postgres
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_HOST: postgres_server
+      DB_PORT: 5432
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
       DB_NAME: ${WIKIJS_DB_NAME}
@@ -34,12 +57,16 @@ services:
     image: ghcr.io/umami-software/umami:postgresql-latest
     container_name: umami
     restart: unless-stopped
+    depends_on:
+    - postgres_server
+    networks:
+    - cpnet-docker-network
     environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${UMAMI_DB_NAME}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@postgres_server:5432/${UMAMI_DB_NAME}
       DATABASE_TYPE: postgresql
       APP_SECRET: ${UMAMI_SECRET}
     ports:
-    - "8083:3000"
+      - "8083:3000"
     healthcheck:
       start_period: 1m
       test: ["CMD-SHELL", "curl -f http://localhost:3000/"]
@@ -77,5 +104,7 @@ networks:
       driver: bridge
 
 volumes:
+  postgres-data:
+    driver: local
   linkding-data:
     driver: local
