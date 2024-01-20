@@ -6,4 +6,4 @@ I've managed to land myself a bit of a two-birds situation here; it allows me to
 * [Linkding](https://github.com/sissbruecker/linkding)
 * ~~Wiki.js (+ Git for backups)~~ No longer user
 
-Because this is all very much a learning exercise for me, so I'm happy to take suggestions for optimizations, best practices, etc.
+Because this is all very much a learning exercise for me, I'm happy to take suggestions for optimizations, best practices, etc.
