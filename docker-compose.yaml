@@ -11,7 +11,6 @@ services:
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASS}
-      WIKIJS_DB_NAME: ${WIKIJS_DB_NAME}
       UMAMI_DB_NAME: ${UMAMI_DB_NAME}
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -21,36 +20,6 @@ services:
       test: ["CMD-SHELL", "psql -U docker_db -d docker_db -c 'SELECT 1' > /dev/null || exit 1"]
       interval: 5m
       timeout: 5s
-      retries: 3
-
-  wikijs:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: wikijs_git:2
-    container_name: wikijs
-    restart: unless-stopped
-    depends_on:
-      - postgres_server
-    networks:
-      - cpnet-docker-network
-    volumes:
-      - ./keys/id_rsa:/home/node/.ssh/id_rsa:ro
-      - ./keys/id_rsa.pub:/home/node/.ssh/id_rsa.pub:ro
-    environment:
-      DB_TYPE: postgres
-      DB_HOST: postgres_server
-      DB_PORT: 5432
-      DB_USER: ${DB_USER}
-      DB_PASS: ${DB_PASS}
-      DB_NAME: ${WIKIJS_DB_NAME}
-    ports:
-      - "8082:3000"
-    healthcheck:
-      start_period: 1m
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/healthz"]
-      interval: 5m
-      timeout: 30s
       retries: 3
 
   umami:
